@@ -1,0 +1,196 @@
+Node.js is an open source JavaScript runtime environment that is used to build networking and server-side applications easily. The Node.js platform currently runs on Linux, FreeBSD, Windows and OS X. While applications can run at the command line, this tutorial focuses on executing them as a service. Therefore, they will be able to restart automatically in the case of a failure or reboot and can be used within production environments safely. 
+
+As we progress through this tutorial, we will cover setting up a Node.js environment ready for production on a single Ubuntu 16.04 server. The server runs a Node.js application managed by PM2 and gives users secure access through a Nginx reverse proxy. The Nginx server offers HTTPS via a free certificate by Let’s Encrypt.
+
+Install Node.js
+To begin, we will install the latest LTS release of Node.js via the NodeSource package archives. To accomplish this, we install the NodeSource PPA to get access to its contents. After ensuring that you are in your home directory, use ‘curl’ to retrieve the Node.js 10.x archives using the installation script. 
+
+We’ll be using the 10.x version because that’s the current LTS release. We recommend updating to 10.x before following this tutorial - to update Node, use nvm. You’ll need a C++ compiler, and the build-essential and libssl-dev packages.
+
+$ cd ~
+$ curl -sL https://deb.nodesource.com/setup_10.x -o nodesource_setup.sh
+The contents of the script can be inspected via ‘nano’, or a text editor you prefer –
+
+$ nano nodesource_setup.sh
+You can then execute the script using ‘sudo.’
+
+$ sudo bash nodesource_setup.sh
+After executing the above command the NodeSource PPA will be supplemented to your configuration, and your local package cache should be automatically updated. Once the setup script from the NodeSource repo is executed, install the Node.js package similar to how it was done above -
+
+$ sudo apt-get install nodejs
+As the ‘node.js’ package already contains the ‘nodejs’ binary and the ‘npm’, there is no need to install ‘npm’ separately. That said, for certain ‘npm’ packages to work as intended, there will be a need to install the ‘build-essential’ package –
+
+$ sudo apt-get install build-essential
+If you've read this far, maybe Version Control is an issue for you. However, if you need to update more than one server, automation makes sense. This is exactly what we offer with DeployBot. DeployBot integrates perfectly with the most popular tech. You can find an ever growing collection of beginners’ guides on our website.
+
+Laravel, Digital Ocean, Ruby on Rails, Docker, Craft CMS, Ghost CMS, Google Web Starter Kit, Grunt or Gulp, Slack, Python, Heroku and many more.
+
+Learn how to get started with DeployBot
+Create a Node.js Application
+To start, let’s write a ‘Hello World application that returns ‘Hello World’ to any HTTP request. This will help get your Node.js set up correctly, and you can then replace with an application of your choice. We’ll be using the Express package to keep things simple.  
+
+To begin, you need to create a directory and initialize your project.
+
+$ mkdir myapp && cd myapp
+
+$ npm init
+You will be asked a few questions. You can go with the default answers by attaching the -f flag. We’ll use app.js as the entrypoint for our application.  Next, add express to the project we created earlier. Here, we’ll use npm. Npm is a package manager for Node related modules. We can use it to install modules and other stuff.
+
+$ npm install express --save
+Open your Node.js application and  use ‘nano’ to edit app.js:
+
+$ cd ~
+$ nano app.js
+You now need to insert the code below in the file. You also have the option to replace the port, 8080, in both locations. Ensure that the port you choose to use is not an admin port, i.e., 1024 or lower and currently not in use by another application.
+
+const express = require('express')
+const app = express()
+const port = 8080
+
+app.get('/', (req, res) => res.send('Hello World!'))
+app.listen(port, () => console.log(`Example app listening on port ${port}!`))
+You can now save and exit the application.  
+
+This application listens in on the mentioned address, localhost: 8080. It returns ‘Hello World’ along with a 200 HTTP success code.
+
+Checking the Endpoint
+Let’s make a change that will enable you to do a test run of your application. Mark ‘app.js’ as executable:
+
+$ chmod +x ./app.js
+And then run it as below:
+
+$  node app.js
+Output
+
+Server running at http://localhost:8080/
+It is important to remember that a Node.js application executed using this method will block further commands until the application is terminated. You can do this using Ctrl-C.
+
+To test your application, you need to open a second terminal session on the server and then connect it to localhost using ‘curl’ -
+
+$ curl http://localhost:8080
+If the output is as mentioned below, the application is working as intended and is listening on the correct port and address.
+
+Hello World
+In case this is not the output that you see, ensure that the Node.js application is running and set up to listen to the right port and address. Once confirmed, you can kill the application using Ctrl+C.
+
+Install PM2
+At the next stage, we will install PM2. PM2 is a process manager for Node.js applications. It presents a simple way to administer and daemonize applications to run them as a service in the background as needed.
+
+The following command installs PM2:
+
+$ sudo npm install -g pm2
+‘-g’ informs ‘npm’ to set up the module globally, to allow it to be available system-wide.
+
+Manage Application with PM2
+PM2 is relatively straightforward and simple to use. The steps below cover a few of the basic uses of PM2. 
+
+To begin, you need to use the ‘pm2 start’ command to execute the app.js’ application in the background –
+
+$ pm2 start app.js
+In addition, this command adds the application to PM2’s process list. This is outputted each time the application starts.
+
+Output
+
+
+[PM2] Spawning PM2 daemon
+[PM2] PM2 Successfully daemonized
+[PM2] Starting app.js in fork_mode (1 instance)
+[PM2] Done.
+
+│ App name │ id │ mode │ pid  │ status │ restart │ uptime │ memory │ watching │
+
+│ app      │ 0  │ fork │ 3524 │ online │ 0       │ 0s     │ 21.566 MB │ disabled │
+
+`pm2 show <id|name>` can be used to get additional details about an app   
+PM2 assigns an App name automatically based on the name on the filename, but minus the ‘.js’ extension. It also assigns a PM2 id. PM2 collects and displays additional information including the process PID, memory usage and its current status. You can check for logs from PM2 by running:
+
+$ pm2 logs
+Furthermore, if you need to backup the logs to an object storage for easy access, you can do that too. Here is a NPM module on GitHub that allows you to create backup of your logs. Easy access to logs help you keep track of the health status of your application.  
+
+Applications that run under PM2 are automatically restarted when the application is killed or if it crashes. Some additional configuration is needed to allow the application to launch when the system is booted or rebooted. Fortunately, PM2 has an easy way to get this done – the subcommand ‘startup’.
+
+The subcommand ‘startup’ generates and configures a script specifically to launch PM2 and its managed process when the server boots.
+
+$ pm2 startup systemd
+The final line of the output includes a command that you need to run with superuser privileges as illustrated below – 
+
+Output
+
+[PM2] Init System found: systemd
+[PM2] You have to run this command as root. Execute the following command:
+sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u mjm --hp /home/mjm
+Execute the command as was generated, similar to the output highlighted above, but replace ‘mjm’ with your username. This sets up PM2 to start when the system boots. Remember to use the command line generated from your output –
+
+$ sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u mjm --hp /home/mjm
+This creates a systemd unit that executes ‘pm2’ for the user when the system boots. The ‘pm2’ instance executes app.js’. The status of the systemd unit can be checked using ‘systemctl’
+
+$ systemctl status pm2-mjm
+Start using DeployBot for free NOW
+Set Up NGINX as a Reverse Proxy Server
+Once your application is running as intended and listening on localhost, you now need to establish a method to grant your users access to it. Towards this end, we now set up the Nginx web server a reverse server. 
+
+Open the following file to edit:
+
+$ sudo nano /etc/nginx/sites-available/default
+From the ‘server’ block you should be able to identify an existing ‘location /’ block. You need to substitute the contents of the block with the configuration as indicated below. In case the application is configured to listen to a different port, you would need to update the highlighted area to point to the correct port number.
+
+/etc/nginx/sites-available/default
+. . .
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+This allows the server to reply to requests at its root. If the server is available at ‘example.com’, it can be accessed using the address ‘https://example.com/’ through a web browser, and the request is sent to app.js’ on port 8080 at localhost.
+
+Additional ‘location’ blocks can be added to the same server block. This will allow access to other applications located on the same server. As an example, if another Node.js application is running on port 8081, this location block can be added so that it can be accessed using ‘http://example.com/app2’ -
+
+/etc/nginx/sites-available/default -- Optional
+    location /app2 {
+        proxy_pass http://localhost:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+After adding location blocks for your applications, you can save and exit.  
+
+To ensure that no syntax errors were introduced, you can use –
+
+$ sudo nginx -t
+You can now restart Nginx using -
+
+$ sudo systemctl restart nginx
+As long as your Node.js application is running as expected and the Nginx configurations and application is accurate, you should now be able to access your application using the Nginx reverse proxy without difficulty. You can check it using your server’s URL. 
+
+Create Backups of Your Volume
+Since you’re setting up for production, it’s important to backup your volume regularly. The exact backup mechanism will vary based on your exact production environment. If you’re running on the public cloud, you can rely on your Cloud provider’s backup solution. AWS, for instance, lets you create snapshots of your volumes. To automate the whole process, you can write a shell script that creates automated backups of your instance, or use a third-party vendor like N2WS, Veritas etc. which can manage AWS backups for you. These solutions use flexible policies and schedules for automating backups of  EC2 instances, EBS volumes, RDS, DynamoDB, Aurora and Redshift. 
+
+Azure and Google Cloud are no short of backup options either. Azure lets you backup your VM using the portal or using a CLI tool. GCP has built-in tools for automating and handling backups. Regardless of the platform you’re on, remember to create automated backups or set up elastic load balancers to automatically failover when something goes wrong.
+
+What next?
+Once an initial version of the server has been set up, you can create a better workflow by automating the whole process. Write a shell script that authenticates with the Ubuntu server using a password or certificate, then uses gulp tasks to organize the production workflow into tasks. Here’s an example of how your code could look like:
+
+var gulp = require('gulp');
+var del = require('del');
+var push = require('git-push');
+var argv = require('minimist')(process.argv.slice(2));
+
+gulp.task('clean', del.bind(null, ['build/*', '!build/.git'], {dot: true}));
+
+gulp.task('build', ['clean'], function() {
+  // Build your application (if any asset compilation is required)
+});
+
+gulp.task('deploy', function(cb) {
+  var remote = argv.production ?
+    {name: 'production', url: 'https://github.com/<org>/site.com', branch: 'gh-pages'},
+    {name: 'test', url: 'https://github.com/<org>/test.site.com', branch: 'gh-pages'};
+  push('./build', remote, cb);
+});
+Alternatively, you can simplify the task by using a deployment service like DeployBot.
